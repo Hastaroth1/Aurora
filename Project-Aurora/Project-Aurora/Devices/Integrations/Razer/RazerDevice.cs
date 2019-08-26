@@ -1,26 +1,32 @@
-﻿using Corale.Colore.Core;
-using Corale.Colore.Razer.Keyboard;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Aurora.Settings;
-using KeyboardCustom = Corale.Colore.Razer.Keyboard.Effects.Custom;
-using MousepadCustom = Corale.Colore.Razer.Mousepad.Effects.Custom;
 using System.ComponentModel;
+using System.Drawing;
+using Corale.Colore.Core;
+using Corale.Colore.Razer.Keyboard;
+using Corale.Colore.Razer.Mouse;
+using KeyboardCustom = Corale.Colore.Razer.Keyboard.Effects.Custom;
+using MouseCustom = Corale.Colore.Razer.Mouse.Effects.CustomGrid;
+using MousepadCustom = Corale.Colore.Razer.Mousepad.Effects.Custom;
+using Aurora.Settings;
+using Aurora.Devices.Layout;
+using Aurora.Devices.Layout.Layouts;
+using LEDINT = System.Int16;
 
 namespace Aurora.Devices.Razer
 {
     class RazerDevice : Device
     {
-
-
         private String devicename = "Razer";
         private bool isInitialized = false;
 
         private bool keyboard_updated = false;
+        private bool mouse_updated = false;
         private bool peripheral_updated = false;
         private KeyboardCustom grid = KeyboardCustom.Create();
+        private MouseCustom MouseGrid = MouseCustom.Create();
         private MousepadCustom MousepadGrid = MousepadCustom.Create();
         //private bool bladeLayout = true;
 
@@ -38,11 +44,6 @@ namespace Aurora.Devices.Razer
 
         private System.Drawing.Color previous_peripheral_Color = System.Drawing.Color.Black;
 
-        public string GetDeviceName()
-        {
-            return devicename;
-        }
-
         public string GetDeviceDetails()
         {
             if (isInitialized)
@@ -53,6 +54,21 @@ namespace Aurora.Devices.Razer
             {
                 return devicename + ": Not initialized";
             }
+        }
+
+        public string GetDeviceName()
+        {
+            return devicename;
+        }
+
+        public string GetDeviceUpdatePerformance()
+        {
+            return (isInitialized ? lastUpdateTime + " ms" : "");
+        }
+
+        public VariableRegistry GetRegisteredVariables()
+        {
+            return new VariableRegistry();
         }
 
         public bool Initialize()
@@ -121,6 +137,40 @@ namespace Aurora.Devices.Razer
             }
         }
 
+        public bool IsConnected()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsInitialized()
+        {
+            return isInitialized && Chroma.Instance.Initialized;
+        }
+
+        public bool IsKeyboardConnected()
+        {
+            return keyboard != null;
+        }
+
+        public bool IsPeripheralConnected()
+        {
+            return (mouse != null || headset != null || mousepad != null);
+        }
+
+        public bool Reconnect()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Reset()
+        {
+            if (this.IsInitialized() && (keyboard_updated || peripheral_updated))
+            {
+                keyboard_updated = false;
+                peripheral_updated = false;
+            }
+        }
+
         public void Shutdown()
         {
             lock (action_lock)
@@ -141,146 +191,67 @@ namespace Aurora.Devices.Razer
             }
         }
 
-        public void Reset()
+        public bool UpdateDevice(System.Drawing.Color GlobalColor, List<DeviceLayout> devices, DoWorkEventArgs e, bool forced = false)
         {
-            if (this.IsInitialized() && (keyboard_updated || peripheral_updated))
-            {
-                keyboard_updated = false;
-                peripheral_updated = false;
-            }
-        }
+            watch.Restart();
 
-        public bool Reconnect()
-        {
-            throw new NotImplementedException();
-        }
+            bool updateResult = true;
 
-        public bool IsInitialized()
-        {
-            return isInitialized && Chroma.Instance.Initialized;
-        }
-
-        public bool IsConnected()
-        {
-            throw new NotImplementedException();
-        }
-
-        private int[] GetKeyCoord(DeviceKeys key)
-        {
-            Dictionary<DeviceKeys, int[]> layout = RazerLayoutMap.GenericKeyboard;
-
-            if (Global.Configuration.keyboard_brand == PreferredKeyboard.Razer_Blade)
-                layout = RazerLayoutMap.Blade;
-
-            if (layout.ContainsKey(key))
-                return layout[key];
-
-            return null;
-        }
-
-        public bool UpdateDevice(Dictionary<DeviceKeys, System.Drawing.Color> keyColors, DoWorkEventArgs e, bool forced = false)
-        {
-            if (e.Cancel) return false;
             try
             {
-                foreach (KeyValuePair<DeviceKeys, System.Drawing.Color> key in keyColors)
+
+                foreach (DeviceLayout layout in devices)
+                {
+                    switch (layout)
+                    {
+                        case KeyboardDeviceLayout kb:
+                            if (!UpdateDevice(kb, e, forced))
+                                updateResult = false;
+                            break;
+                        case MouseDeviceLayout mouse:
+                            if (!UpdateDevice(mouse, e, forced))
+                                updateResult = false;
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Global.logger.Error("Razer device, error when updating device: " + ex);
+                return false;
+            }
+
+            watch.Stop();
+            lastUpdateTime = watch.ElapsedMilliseconds;
+
+            return updateResult;
+        }
+
+        public bool UpdateDevice(KeyboardDeviceLayout device, DoWorkEventArgs e, bool forced = false)
+        {
+            try
+            {
+                foreach (KeyValuePair<LEDINT, System.Drawing.Color> key in device.DeviceColours.deviceColours)
                 {
                     if (e.Cancel) return false;
-                    //Key localKey = ToRazer(key.Key);
-
                     int[] coord = null;
-                    if (key.Key == DeviceKeys.Peripheral_Logo || key.Key == DeviceKeys.Peripheral)
-                    {
-                        SendColorToPeripheral(key.Value, forced);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT1)
-                    {
-                      
-                        SendColorToMousepad(14,key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT2)
-                    {
 
-                        SendColorToMousepad(13, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT3)
+                    if ((coord = GetKeyCoord((KeyboardKeys)key.Key, device.Style)) != null)
                     {
-
-                        SendColorToMousepad(12, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT4)
-                    {
-
-                        SendColorToMousepad(11, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT5)
-                    {
-
-                        SendColorToMousepad(10, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT6)
-                    {
-
-                        SendColorToMousepad(9, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT7)
-                    {
-
-                        SendColorToMousepad(8, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT8)
-                    {
-
-                        SendColorToMousepad(7, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT9)
-                    {
-
-                        SendColorToMousepad(6, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT10)
-                    {
-
-                        SendColorToMousepad(5, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT11)
-                    {
-
-                        SendColorToMousepad(4, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT12)
-                    {
-
-                        SendColorToMousepad(3, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT13)
-                    {
-
-                        SendColorToMousepad(2, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT14)
-                    {
-
-                        SendColorToMousepad(1, key.Value);
-                    }
-                    else if (key.Key == DeviceKeys.MOUSEPADLIGHT15)
-                    {
-
-                        SendColorToMousepad(0, key.Value);
-                    }
-                    else if ((coord = GetKeyCoord(key.Key)) != null)
-                    {
-                        SetOneKey(coord, key.Value);
+                        grid[coord[0], coord[1]] = new Corale.Colore.Core.Color(key.Value.R, key.Value.G, key.Value.B);
                     }
                     else
                     {
-                        Key localKey = ToRazer(key.Key);
-                        SetOneKey(localKey, key.Value);
+                        Key localKey = ToRazer((KeyboardKeys)key.Key);
+                        if(localKey != Key.Invalid)
+                            grid[localKey] = new Corale.Colore.Core.Color(key.Value.R, key.Value.G, key.Value.B);
                     }
                 }
-
                 if (e.Cancel) return false;
-                SendColorsToKeyboard(forced);
+
+                keyboard.SetCustom(grid);
+                keyboard_updated = true;
+
                 return true;
             }
             catch (Exception exc)
@@ -291,359 +262,335 @@ namespace Aurora.Devices.Razer
             }
         }
 
-        public bool UpdateDevice(DeviceColorComposition colorComposition, DoWorkEventArgs e, bool forced = false)
-        {
-            watch.Restart();
-
-            bool update_result = UpdateDevice(colorComposition.keyColors, e, forced);
-
-            watch.Stop();
-            lastUpdateTime = watch.ElapsedMilliseconds;
-
-            return update_result;
-        }
-
-        private void SendColorsToKeyboard(bool forced = false)
-        {
-            if (keyboard != null && !Global.Configuration.devices_disable_keyboard)
-            {
-                keyboard.SetCustom(grid);
-                keyboard_updated = true;
-            }
-        }
-
-        private void SetOneKey(int[] coords, System.Drawing.Color color)
-        {
-            if (!Global.Configuration.devices_disable_keyboard)
-                grid[coords[0], coords[1]] = new Color(color.R, color.G, color.B);
-        }
-
-        private void SetOneKey(Key key, System.Drawing.Color color)
-        {
-            if (key == Key.Invalid)
-                return;
-
-            try
-            {
-                if (!Global.Configuration.devices_disable_keyboard)
-                    grid[key] = new Color(color.R, color.G, color.B);
-            }
-            catch (Exception exc)
-            {
-
-            }
-        }
-
-        private void SendColorToMousepad(int index, System.Drawing.Color color)
-        {
-            if (Global.Configuration.allow_peripheral_devices)
-            {
-                if (mousepad != null && !Global.Configuration.devices_disable_mouse)
-                {
-                    MousepadGrid[index] = new Color(color.R, color.G, color.B);
-                    mousepad.SetCustom(MousepadGrid);
-                }
-                previous_peripheral_Color = color;
-                peripheral_updated = true;
-            }
-            else
-            {
-                if (peripheral_updated)
-                {
-                    peripheral_updated = false;
-                }
-            }
-        }
-
-        private void SendColorToPeripheral(System.Drawing.Color color, bool forced = false)
-        {
-            if ((!previous_peripheral_Color.Equals(color) || forced))
-            {
-                if (Global.Configuration.allow_peripheral_devices)
-                {
-                    if (mouse != null && !Global.Configuration.devices_disable_mouse)
-                        mouse.SetAll(new Color(color.R, color.G, color.B));
-
-                    //if (mousepad != null && !Global.Configuration.devices_disable_mouse)
-                     //   mousepad.SetAll(new Color(color.R, color.G, color.B));
-
-                    if (headset != null && !Global.Configuration.devices_disable_headset)
-                        headset.SetAll(new Color(color.R, color.G, color.B));
-
-                    if (keypad != null && !Global.Configuration.devices_disable_keyboard)
-                        keypad.SetAll(new Color(color.R, color.G, color.B));
-
-                    if (chromalink != null && !Global.Configuration.devices_disable_mouse)
-                        chromalink.SetStatic(new Color(color.R, color.G, color.B));
-
-                    previous_peripheral_Color = color;
-                    peripheral_updated = true;
-                }
-                else
-                {
-                    if (peripheral_updated)
-                    {
-                        peripheral_updated = false;
-                    }
-                }
-            }
-        }
-
-        private Key ToRazer(DeviceKeys key)
+        private Key ToRazer(KeyboardKeys key)
         {
             switch (key)
             {
-                case (DeviceKeys.ESC):
+                case (KeyboardKeys.ESC):
                     return Key.Escape;
-                case (DeviceKeys.F1):
+                case (KeyboardKeys.F1):
                     return Key.F1;
-                case (DeviceKeys.F2):
+                case (KeyboardKeys.F2):
                     return Key.F2;
-                case (DeviceKeys.F3):
+                case (KeyboardKeys.F3):
                     return Key.F3;
-                case (DeviceKeys.F4):
+                case (KeyboardKeys.F4):
                     return Key.F4;
-                case (DeviceKeys.F5):
+                case (KeyboardKeys.F5):
                     return Key.F5;
-                case (DeviceKeys.F6):
+                case (KeyboardKeys.F6):
                     return Key.F6;
-                case (DeviceKeys.F7):
+                case (KeyboardKeys.F7):
                     return Key.F7;
-                case (DeviceKeys.F8):
+                case (KeyboardKeys.F8):
                     return Key.F8;
-                case (DeviceKeys.F9):
+                case (KeyboardKeys.F9):
                     return Key.F9;
-                case (DeviceKeys.F10):
+                case (KeyboardKeys.F10):
                     return Key.F10;
-                case (DeviceKeys.F11):
+                case (KeyboardKeys.F11):
                     return Key.F11;
-                case (DeviceKeys.F12):
+                case (KeyboardKeys.F12):
                     return Key.F12;
-                case (DeviceKeys.PRINT_SCREEN):
+                case (KeyboardKeys.PRINT_SCREEN):
                     return Key.PrintScreen;
-                case (DeviceKeys.SCROLL_LOCK):
+                case (KeyboardKeys.SCROLL_LOCK):
                     return Key.Scroll;
-                case (DeviceKeys.PAUSE_BREAK):
+                case (KeyboardKeys.PAUSE_BREAK):
                     return Key.Pause;
-                case (DeviceKeys.TILDE):
+                case (KeyboardKeys.TILDE):
                     return Key.OemTilde;
-                case (DeviceKeys.ONE):
+                case (KeyboardKeys.ONE):
                     return Key.D1;
-                case (DeviceKeys.TWO):
+                case (KeyboardKeys.TWO):
                     return Key.D2;
-                case (DeviceKeys.THREE):
+                case (KeyboardKeys.THREE):
                     return Key.D3;
-                case (DeviceKeys.FOUR):
+                case (KeyboardKeys.FOUR):
                     return Key.D4;
-                case (DeviceKeys.FIVE):
+                case (KeyboardKeys.FIVE):
                     return Key.D5;
-                case (DeviceKeys.SIX):
+                case (KeyboardKeys.SIX):
                     return Key.D6;
-                case (DeviceKeys.SEVEN):
+                case (KeyboardKeys.SEVEN):
                     return Key.D7;
-                case (DeviceKeys.EIGHT):
+                case (KeyboardKeys.EIGHT):
                     return Key.D8;
-                case (DeviceKeys.NINE):
+                case (KeyboardKeys.NINE):
                     return Key.D9;
-                case (DeviceKeys.ZERO):
+                case (KeyboardKeys.ZERO):
                     return Key.D0;
-                case (DeviceKeys.MINUS):
+                case (KeyboardKeys.MINUS):
                     return Key.OemMinus;
-                case (DeviceKeys.EQUALS):
+                case (KeyboardKeys.EQUALS):
                     return Key.OemEquals;
-                case (DeviceKeys.BACKSPACE):
+                case (KeyboardKeys.BACKSPACE):
                     return Key.Backspace;
-                case (DeviceKeys.INSERT):
+                case (KeyboardKeys.INSERT):
                     return Key.Insert;
-                case (DeviceKeys.HOME):
+                case (KeyboardKeys.HOME):
                     return Key.Home;
-                case (DeviceKeys.PAGE_UP):
+                case (KeyboardKeys.PAGE_UP):
                     return Key.PageUp;
-                case (DeviceKeys.NUM_LOCK):
+                case (KeyboardKeys.NUM_LOCK):
                     return Key.NumLock;
-                case (DeviceKeys.NUM_SLASH):
+                case (KeyboardKeys.NUM_SLASH):
                     return Key.NumDivide;
-                case (DeviceKeys.NUM_ASTERISK):
+                case (KeyboardKeys.NUM_ASTERISK):
                     return Key.NumMultiply;
-                case (DeviceKeys.NUM_MINUS):
+                case (KeyboardKeys.NUM_MINUS):
                     return Key.NumSubtract;
-                case (DeviceKeys.TAB):
+                case (KeyboardKeys.TAB):
                     return Key.Tab;
-                case (DeviceKeys.Q):
+                case (KeyboardKeys.Q):
                     return Key.Q;
-                case (DeviceKeys.W):
+                case (KeyboardKeys.W):
                     return Key.W;
-                case (DeviceKeys.E):
+                case (KeyboardKeys.E):
                     return Key.E;
-                case (DeviceKeys.R):
+                case (KeyboardKeys.R):
                     return Key.R;
-                case (DeviceKeys.T):
+                case (KeyboardKeys.T):
                     return Key.T;
-                case (DeviceKeys.Y):
+                case (KeyboardKeys.Y):
                     return Key.Y;
-                case (DeviceKeys.U):
+                case (KeyboardKeys.U):
                     return Key.U;
-                case (DeviceKeys.I):
+                case (KeyboardKeys.I):
                     return Key.I;
-                case (DeviceKeys.O):
+                case (KeyboardKeys.O):
                     return Key.O;
-                case (DeviceKeys.P):
+                case (KeyboardKeys.P):
                     return Key.P;
-                case (DeviceKeys.OPEN_BRACKET):
+                case (KeyboardKeys.OPEN_BRACKET):
                     return Key.OemLeftBracket;
-                case (DeviceKeys.CLOSE_BRACKET):
+                case (KeyboardKeys.CLOSE_BRACKET):
                     return Key.OemRightBracket;
-                case (DeviceKeys.BACKSLASH):
+                case (KeyboardKeys.BACKSLASH):
                     return Key.OemBackslash;
-                case (DeviceKeys.DELETE):
+                case (KeyboardKeys.DELETE):
                     return Key.Delete;
-                case (DeviceKeys.END):
+                case (KeyboardKeys.END):
                     return Key.End;
-                case (DeviceKeys.PAGE_DOWN):
+                case (KeyboardKeys.PAGE_DOWN):
                     return Key.PageDown;
-                case (DeviceKeys.NUM_SEVEN):
+                case (KeyboardKeys.NUM_SEVEN):
                     return Key.Num7;
-                case (DeviceKeys.NUM_EIGHT):
+                case (KeyboardKeys.NUM_EIGHT):
                     return Key.Num8;
-                case (DeviceKeys.NUM_NINE):
+                case (KeyboardKeys.NUM_NINE):
                     return Key.Num9;
-                case (DeviceKeys.NUM_PLUS):
+                case (KeyboardKeys.NUM_PLUS):
                     return Key.NumAdd;
-                case (DeviceKeys.CAPS_LOCK):
+                case (KeyboardKeys.CAPS_LOCK):
                     return Key.CapsLock;
-                case (DeviceKeys.A):
+                case (KeyboardKeys.A):
                     return Key.A;
-                case (DeviceKeys.S):
+                case (KeyboardKeys.S):
                     return Key.S;
-                case (DeviceKeys.D):
+                case (KeyboardKeys.D):
                     return Key.D;
-                case (DeviceKeys.F):
+                case (KeyboardKeys.F):
                     return Key.F;
-                case (DeviceKeys.G):
+                case (KeyboardKeys.G):
                     return Key.G;
-                case (DeviceKeys.H):
+                case (KeyboardKeys.H):
                     return Key.H;
-                case (DeviceKeys.J):
+                case (KeyboardKeys.J):
                     return Key.J;
-                case (DeviceKeys.K):
+                case (KeyboardKeys.K):
                     return Key.K;
-                case (DeviceKeys.L):
+                case (KeyboardKeys.L):
                     return Key.L;
-                case (DeviceKeys.SEMICOLON):
+                case (KeyboardKeys.SEMICOLON):
                     return Key.OemSemicolon;
-                case (DeviceKeys.APOSTROPHE):
+                case (KeyboardKeys.APOSTROPHE):
                     return Key.OemApostrophe;
-                case (DeviceKeys.HASHTAG):
+                case (KeyboardKeys.HASH):
                     return Key.EurPound;
-                case (DeviceKeys.ENTER):
+                case (KeyboardKeys.ENTER):
                     return Key.Enter;
-                case (DeviceKeys.NUM_FOUR):
+                case (KeyboardKeys.NUM_FOUR):
                     return Key.Num4;
-                case (DeviceKeys.NUM_FIVE):
+                case (KeyboardKeys.NUM_FIVE):
                     return Key.Num5;
-                case (DeviceKeys.NUM_SIX):
+                case (KeyboardKeys.NUM_SIX):
                     return Key.Num6;
-                case (DeviceKeys.LEFT_SHIFT):
+                case (KeyboardKeys.LEFT_SHIFT):
                     return Key.LeftShift;
-                case (DeviceKeys.BACKSLASH_UK):
+                case (KeyboardKeys.BACKSLASH_UK):
                     return Key.EurBackslash;
-                case (DeviceKeys.Z):
+                case (KeyboardKeys.Z):
                     return Key.Z;
-                case (DeviceKeys.X):
+                case (KeyboardKeys.X):
                     return Key.X;
-                case (DeviceKeys.C):
+                case (KeyboardKeys.C):
                     return Key.C;
-                case (DeviceKeys.V):
+                case (KeyboardKeys.V):
                     return Key.V;
-                case (DeviceKeys.B):
+                case (KeyboardKeys.B):
                     return Key.B;
-                case (DeviceKeys.N):
+                case (KeyboardKeys.N):
                     return Key.N;
-                case (DeviceKeys.M):
+                case (KeyboardKeys.M):
                     return Key.M;
-                case (DeviceKeys.COMMA):
+                case (KeyboardKeys.COMMA):
                     return Key.OemComma;
-                case (DeviceKeys.PERIOD):
+                case (KeyboardKeys.PERIOD):
                     return Key.OemPeriod;
-                case (DeviceKeys.FORWARD_SLASH):
+                case (KeyboardKeys.FORWARD_SLASH):
                     return Key.OemSlash;
-                case (DeviceKeys.OEM8):
+                case (KeyboardKeys.OEM8):
                     return Key.OemSlash;
-                case (DeviceKeys.RIGHT_SHIFT):
+                case (KeyboardKeys.RIGHT_SHIFT):
                     return Key.RightShift;
-                case (DeviceKeys.ARROW_UP):
+                case (KeyboardKeys.ARROW_UP):
                     return Key.Up;
-                case (DeviceKeys.NUM_ONE):
+                case (KeyboardKeys.NUM_ONE):
                     return Key.Num1;
-                case (DeviceKeys.NUM_TWO):
+                case (KeyboardKeys.NUM_TWO):
                     return Key.Num2;
-                case (DeviceKeys.NUM_THREE):
+                case (KeyboardKeys.NUM_THREE):
                     return Key.Num3;
-                case (DeviceKeys.NUM_ENTER):
+                case (KeyboardKeys.NUM_ENTER):
                     return Key.NumEnter;
-                case (DeviceKeys.LEFT_CONTROL):
+                case (KeyboardKeys.LEFT_CONTROL):
                     return Key.LeftControl;
-                case (DeviceKeys.LEFT_WINDOWS):
+                case (KeyboardKeys.LEFT_WINDOWS):
                     return Key.LeftWindows;
-                case (DeviceKeys.LEFT_ALT):
+                case (KeyboardKeys.LEFT_ALT):
                     return Key.LeftAlt;
-                case (DeviceKeys.SPACE):
+                case (KeyboardKeys.SPACE):
                     return Key.Space;
-                case (DeviceKeys.RIGHT_ALT):
+                case (KeyboardKeys.RIGHT_ALT):
                     return Key.RightAlt;
-                //case (DeviceKeys.RIGHT_WINDOWS):
+                //case (KeyboardKeys.RIGHT_WINDOWS):
                 //    return Key.Right;
-                case (DeviceKeys.APPLICATION_SELECT):
+                case (KeyboardKeys.APPLICATION_SELECT):
                     return Key.RightMenu;
-                case (DeviceKeys.RIGHT_CONTROL):
+                case (KeyboardKeys.RIGHT_CONTROL):
                     return Key.RightControl;
-                case (DeviceKeys.ARROW_LEFT):
+                case (KeyboardKeys.ARROW_LEFT):
                     return Key.Left;
-                case (DeviceKeys.ARROW_DOWN):
+                case (KeyboardKeys.ARROW_DOWN):
                     return Key.Down;
-                case (DeviceKeys.ARROW_RIGHT):
+                case (KeyboardKeys.ARROW_RIGHT):
                     return Key.Right;
-                case (DeviceKeys.NUM_ZERO):
+                case (KeyboardKeys.NUM_ZERO):
                     return Key.Num0;
-                case (DeviceKeys.NUM_PERIOD):
+                case (KeyboardKeys.NUM_PERIOD):
                     return Key.NumDecimal;
-                case (DeviceKeys.FN_Key):
+                case (KeyboardKeys.FN_Key):
                     return Key.Function;
-                case (DeviceKeys.G1):
+                case (KeyboardKeys.G1):
                     return Key.Macro1;
-                case (DeviceKeys.G2):
+                case (KeyboardKeys.G2):
                     return Key.Macro2;
-                case (DeviceKeys.G3):
+                case (KeyboardKeys.G3):
                     return Key.Macro3;
-                case (DeviceKeys.G4):
+                case (KeyboardKeys.G4):
                     return Key.Macro4;
-                case (DeviceKeys.G5):
+                case (KeyboardKeys.G5):
                     return Key.Macro5;
-                case (DeviceKeys.LOGO):
+                case (KeyboardKeys.LOGO):
                     return Key.Logo;
                 default:
                     return Key.Invalid;
             }
         }
 
-        public bool IsKeyboardConnected()
+        private int[] GetKeyCoord(KeyboardKeys key, KeyboardDeviceLayout.PreferredKeyboard keyLayout)
         {
-            return keyboard != null;
+            Dictionary<KeyboardKeys, int[]> layout = RazerLayoutMap.GenericKeyboard;
+
+            if (keyLayout == KeyboardDeviceLayout.PreferredKeyboard.Razer_Blade)
+                layout = RazerLayoutMap.Blade;
+
+            if (layout.ContainsKey(key))
+                return layout[key];
+
+            return null;
         }
 
-        public bool IsPeripheralConnected()
+        public bool UpdateDevice(MouseDeviceLayout device, DoWorkEventArgs e, bool forced = false)
         {
-            return (mouse != null || headset != null || mousepad != null);
+            try
+            {
+                foreach (KeyValuePair<LEDINT, System.Drawing.Color> key in device.DeviceColours.deviceColours)
+                {
+                    if (e.Cancel) return false;
+
+                    GridLed localLed = ToRazer((MouseLights)key.Key);
+                    if (localLed != 0)
+                        MouseGrid[localLed] = new Corale.Colore.Core.Color(key.Value.R, key.Value.G, key.Value.B);
+                }
+                if (e.Cancel) return false;
+
+                mouse.SetGrid(MouseGrid);
+                mouse_updated = true;
+
+                return true;
+            }
+            catch (Exception exc)
+            {
+                Global.logger.Error("Razer device, error when updating device. Error: " + exc);
+                Console.WriteLine(exc);
+                return false;
+            }
         }
 
-        public string GetDeviceUpdatePerformance()
+        private GridLed ToRazer(MouseLights light)
         {
-            return (isInitialized ? lastUpdateTime + " ms" : "");
-        }
+            switch (light)
+            {
+                case MouseLights.Peripheral_Logo:
+                    return GridLed.Logo;
+                case MouseLights.Peripheral_ScrollWheel:
+                    return GridLed.ScrollWheel;
+                case MouseLights.Peripheral_BackLight:
+                    return GridLed.Backlight;  
+                case MouseLights.Peripheral_ExtraLightIndex:
+                    return GridLed.Bottom1;
+                case MouseLights.Peripheral_ExtraLightIndex+1:
+                    return GridLed.Bottom2;
+                case MouseLights.Peripheral_ExtraLightIndex+2:
+                    return GridLed.Bottom3;
+                case MouseLights.Peripheral_ExtraLightIndex+3:
+                    return GridLed.Bottom4;
+                case MouseLights.Peripheral_ExtraLightIndex+4:
+                    return GridLed.Bottom5;
+                case MouseLights.Peripheral_ExtraLightLeftIndex:
+                    return GridLed.LeftSide1;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+1:
+                    return GridLed.LeftSide2;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+2:
+                    return GridLed.LeftSide3;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+3:
+                    return GridLed.LeftSide4;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+4:
+                    return GridLed.LeftSide5;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+5:
+                    return GridLed.LeftSide6;
+                case MouseLights.Peripheral_ExtraLightLeftIndex+6:
+                    return GridLed.LeftSide7;
+                case MouseLights.Peripheral_ExtraLightRightIndex:
+                    return GridLed.RightSide1;
+                case MouseLights.Peripheral_ExtraLightRightIndex+1:
+                    return GridLed.RightSide2;
+                case MouseLights.Peripheral_ExtraLightRightIndex+2:
+                    return GridLed.RightSide3;
+                case MouseLights.Peripheral_ExtraLightRightIndex+3:
+                    return GridLed.RightSide4;
+                case MouseLights.Peripheral_ExtraLightRightIndex+4:
+                    return GridLed.RightSide5;
+                case MouseLights.Peripheral_ExtraLightRightIndex+5:
+                    return GridLed.RightSide6;
+                case MouseLights.Peripheral_ExtraLightRightIndex+6:
+                    return GridLed.RightSide7;
+                default:
+                    return 0;
 
-        public VariableRegistry GetRegisteredVariables()
-        {
-            return new VariableRegistry();
+            }
         }
     }
 }

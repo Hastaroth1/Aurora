@@ -3,6 +3,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -18,29 +19,29 @@ namespace SteelSeries.GameSenseSDK
         public String encrypted_address { get; set; }
     }
 
-    public class GameSensePayloadLISPHandlerJSON
+    public class PayloadLISPHandlerJSON
     {
         public String game { get; set; }
         public String golisp { get; set; }
     }
 
-    public class GameSensePayloadHeartbeatJSON
+    public class PayloadHeartbeatJSON
     {
         public String game { get; set; }
     }
 
-    public class GameSensePayloadGameDataJSON
+    public class PayloadGameDataJSON
     {
         public String game { get; set; }
         public String game_display_name { get; set; }
         public byte icon_color_id { get; set; }
     }
 
-    public class GameSensePayloadPeripheryColorEventJSON
+    public class PayloadColorEventJSON
     {
         public String game { get; set; }
         public String Event { get; set; }
-        public String data { get; set; }
+        public Dictionary<String,dynamic> data { get; set; }
     }
 
     public class GameSenseSDK
@@ -70,72 +71,18 @@ namespace SteelSeries.GameSenseSDK
             setupLISPHandlers();
         }
 
-        public void setPeripheryColor(byte red, byte green, byte blue)
+        public void sendEventPayload(PayloadColorEventJSON payload)
         {
-            sendColor("periph", red, green, blue);
-        }
-
-        public void setMouseColor(byte red, byte green, byte blue)
-        {
-            sendColor("mouse", red, green, blue);
-        }
-
-        public void setMouseScrollWheelColor(byte red, byte green, byte blue)
-        {
-            sendColor("mousewheel", red, green, blue);
-        }
-
-        public void setMouseLogoColor(byte red, byte green, byte blue)
-        {
-            sendColor("mouselogo", red, green, blue);
-        }
-
-        public void setHeadsetColor(byte red, byte green, byte blue)
-        {
-            sendColor("headset", red, green, blue);
-        }
-
-        public void sendColor(String deviceType, byte red, byte green, byte blue)
-        {
-            GameSensePayloadPeripheryColorEventJSON payload = new GameSensePayloadPeripheryColorEventJSON();
             payload.game = sseGameName;
             payload.Event = "COLOR";
-            payload.data = "{\""+ deviceType + "\":{\"color\": [" + red + ", " + green + ", " + blue + "]}}";
-            // sending POST request
-            String json = JsonConvert.SerializeObject(payload);
-            sendPostRequest("http://" + sseAddress + "/game_event", json);
-        }
-
-        public void setKeyboardColors(List<byte> hids, List<Tuple<byte, byte, byte>> colors)
-        {
-            GameSensePayloadPeripheryColorEventJSON payload = new GameSensePayloadPeripheryColorEventJSON();
-            payload.game = sseGameName;
-            payload.Event = "COLOR";
-
-            payload.data = "{";
-            payload.data += "\"keyboard\":{";
-            payload.data += "\"hids\":";
-            payload.data += JsonConvert.SerializeObject(hids);
-            payload.data += ",";
-            payload.data += "\"colors\":[";
-            foreach (Tuple<byte, byte, byte> color in colors)
-            {
-                payload.data += "[" + color.Item1 + ", " + color.Item2 + ", " + color.Item3 + "],";
-            }
-            // JSON doesn't allow trailing commas
-            payload.data = payload.data.TrimEnd(',');
-            payload.data += "]";
-            payload.data += "}";
-            payload.data += "}";
 
             // sending POST request
             String json = JsonConvert.SerializeObject(payload);
             sendPostRequest("http://" + sseAddress + "/game_event", json);
         }
-
         public void sendHeartbeat()
         {
-            GameSensePayloadHeartbeatJSON payload = new GameSensePayloadHeartbeatJSON();
+            PayloadHeartbeatJSON payload = new PayloadHeartbeatJSON();
             payload.game = sseGameName;
             // sending POST request
             String json = JsonConvert.SerializeObject(payload);
@@ -144,7 +91,7 @@ namespace SteelSeries.GameSenseSDK
 
         public void sendStop()
         {
-            GameSensePayloadPeripheryColorEventJSON payload = new GameSensePayloadPeripheryColorEventJSON();
+            PayloadColorEventJSON payload = new PayloadColorEventJSON();
             payload.game = sseGameName;
             payload.Event = "STOP";
             // sending POST request
@@ -155,7 +102,7 @@ namespace SteelSeries.GameSenseSDK
         private void setupLISPHandlers()
         {
             String json = "";
-            GameSensePayloadLISPHandlerJSON payload = new GameSensePayloadLISPHandlerJSON();
+            PayloadLISPHandlerJSON payload = new PayloadLISPHandlerJSON();
             payload.game = sseGameName;
 
             // sending POST requests with golisp handler
@@ -220,7 +167,7 @@ namespace SteelSeries.GameSenseSDK
 
         private void setupGame(byte iconColorID)
         {
-            GameSensePayloadGameDataJSON payload = new GameSensePayloadGameDataJSON();
+            PayloadGameDataJSON payload = new PayloadGameDataJSON();
             payload.game = sseGameName;
             payload.game_display_name = sseGameDisplayname;
             payload.icon_color_id = iconColorID;

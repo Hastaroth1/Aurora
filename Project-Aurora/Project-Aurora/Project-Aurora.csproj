@@ -371,12 +371,12 @@
     <Compile Include="Devices\Integrations\Corsair\CorsairInstallInstructions.xaml.cs">
       <DependentUpon>CorsairInstallInstructions.xaml</DependentUpon>
     </Compile>
-    <None Include="Devices\Integrations\CoolerMaster\CoolerMasterDevice.cs" />
-    <None Include="Devices\Integrations\CoolerMaster\CoolerMasterSDK.cs" />
-    <None Include="Devices\Integrations\Creative\SoundBlasterXDevice.cs" />
-    <None Include="Devices\Integrations\Drevo\DrevoDevice.cs" />
-    <None Include="Devices\Integrations\Drevo\DrevoLayoutMap.cs" />
-    <None Include="Devices\Integrations\Drevo\DrevoRadiSDK.cs" />
+    <Compile Include="Devices\Integrations\CoolerMaster\CoolerMasterDevice.cs" />
+    <Compile Include="Devices\Integrations\CoolerMaster\CoolerMasterSDK.cs" />
+    <Compile Include="Devices\Integrations\Creative\SoundBlasterXDevice.cs" />
+    <Compile Include="Devices\Integrations\Drevo\DrevoDevice.cs" />
+    <Compile Include="Devices\Integrations\Drevo\DrevoLayoutMap.cs" />
+    <Compile Include="Devices\Integrations\Drevo\DrevoRadiSDK.cs" />
     <None Include="Devices\Integrations\Dualshock4\Dualshock4Device.cs" />
     <Compile Include="Devices\Integrations\Dualshock4\DS4InstallInstructions.xaml.cs">
       <DependentUpon>DS4InstallInstructions.xaml</DependentUpon>
@@ -386,12 +386,12 @@
     <Compile Include="Devices\Integrations\Logitech\LogitechInstallInstructions.xaml.cs">
       <DependentUpon>LogitechInstallInstructions.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Devices\Integrations\Razer\RazerDevice.cs" />
     <Compile Include="Devices\Integrations\Razer\RazerInstallInstructions.xaml.cs">
       <DependentUpon>RazerInstallInstructions.xaml</DependentUpon>
     </Compile>
-    <None Include="Devices\Integrations\Razer\RazerDevice.cs" />
-    <None Include="Devices\Integrations\Razer\RazerLayoutMap.cs" />
-    <None Include="Devices\Integrations\Roccat\RoccatDevice.cs" />
+    <Compile Include="Devices\Integrations\Razer\RazerLayoutMap.cs" />
+    <Compile Include="Devices\Integrations\Roccat\RoccatDevice.cs" />
     <Compile Include="Devices\Integrations\Roccat\RoccatInstallInstructions.xaml.cs">
       <DependentUpon>RoccatInstallInstructions.xaml</DependentUpon>
     </Compile>
@@ -1116,7 +1116,7 @@
     <Content Include="Settings\ColorZone.cs" />
     <Compile Include="Settings\Configuration.cs" />
     <Compile Include="Devices\DeviceManager.cs" />
-    <None Include="Devices\Integrations\Corsair\CorsairDevice.cs" />
+    <Compile Include="Devices\Integrations\Corsair\CorsairDevice.cs" />
     <Compile Include="Devices\Device.cs" />
     <Compile Include="Devices\Integrations\Logitech\LogitechDevice.cs" />
     <Compile Include="EffectsEngine\EffectColor.cs" />
