@@ -437,6 +437,8 @@
       <DependentUpon>Control_Diablo3.xaml</DependentUpon>
     </Compile>
     <Compile Include="Profiles\Diablo3\Diablo3Application.cs" />
+    <Compile Include="Profiles\Guild Wars 2\GameEvent_GW2.cs" />
+    <Compile Include="Profiles\Guild Wars 2\GSI\GameState_GW2.cs" />
     <Compile Include="Profiles\Minecraft\GSI\Nodes\GameNode.cs" />
     <Compile Include="Profiles\Minecraft\Layers\Control_MinecraftKeyConflictLayer.xaml.cs">
       <DependentUpon>Control_MinecraftKeyConflictLayer.xaml</DependentUpon>

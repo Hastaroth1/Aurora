@@ -25,7 +25,7 @@ namespace Aurora.Profiles
             Queue<EffectLayer> layers = new Queue<EffectLayer>();
             ApplicationProfile settings = this.Application.Profile;
             
-            foreach (var layer in Application.Profile.Layers.Reverse().ToArray())
+            foreach (var layer in Application.Profile.Layers.Reverse())
             {
                 if (layer.Enabled && layer.LogicPass)
                     layers.Enqueue(layer.Render(_game_state));
